@@ -26,6 +26,7 @@ class simulateOnlineData(object):
                  users,
                  global_parameter_set,
                  parameter_index_for_users,
+                 alpha_0,
                  batchSize=1000,
                  noise=lambda: 0,
                  type_='UniformTheta',
@@ -47,7 +48,12 @@ class simulateOnlineData(object):
         self.users = users
         self.global_parameter_set = global_parameter_set
         self.parameter_index_for_users = parameter_index_for_users
-
+        self.global_parameter_popularity = [0]*self.global_parameter_set.shape[0]
+        for index in self.parameter_index_for_users:
+            self.global_parameter_popularity[index] += 1
+        # self.global_parameter_popularity = np.array(self.global_parameter_popularity)
+        self.alpha_0 = alpha_0
+        self.dimension = self.global_parameter_set.shape[1]
         self.poolArticleSize = poolArticleSize
         self.batchSize = batchSize
 
@@ -122,6 +128,9 @@ class simulateOnlineData(object):
             change_schedule = np.random.randint(self.minimum_change_schedule, self.maximum_change_schedule + 1)
             users_change_schedule[u.id] = change_schedule
 
+        # print("Initial global parameter popularity:")
+        # print(self.global_parameter_popularity)
+
         for iter_ in range(self.testing_iterations):
             for alg_name, alg in algorithms.items():
                 if alg.CanEstimateUserPreference:
@@ -142,12 +151,44 @@ class simulateOnlineData(object):
                     users_change_schedule[u.id] = np.random.randint(self.minimum_change_schedule,
                                                                     self.maximum_change_schedule + 1)
                     # sample a new parameter that is different from current one for this user from the global parameter set
-                    new_parameter_index = np.random.randint(self.global_parameter_set.shape[0])
-                    while self.parameter_index_for_users[u.id] == new_parameter_index:
-                        new_parameter_index = np.random.randint(self.global_parameter_set.shape[0])
-                    self.parameter_index_for_users[u.id] = new_parameter_index
-                    u.theta = self.global_parameter_set[new_parameter_index]
+                    # self.global_parameter_popularity[self.parameter_index_for_users[u.id]] -= 1
+                    prob = self.global_parameter_popularity + [self.alpha_0]
+                    # print(self.global_parameter_popularity)
+                    # print(prob)
+                    prob = prob / np.sum(prob)
 
+                    new_parameter_index = np.random.choice(len(self.global_parameter_popularity) + 1, size=None, replace=True, p=prob)
+                    assert new_parameter_index != len(self.global_parameter_popularity) + 1
+                    if new_parameter_index == len(self.global_parameter_popularity):
+                        # print("new parameter index!")
+                        # generate new theta
+                        thetaVector = gaussianFeature(self.dimension, argv={'l2_limit': 1})
+                        l2_norm = np.linalg.norm(thetaVector, ord=2)
+                        new_theta = thetaVector / l2_norm
+
+                        dist_to_all_existing_big = all([np.linalg.norm(new_theta - existing_theta) >= 0.9 for existing_theta in self.global_parameter_set])
+                        while (not dist_to_all_existing_big):
+                            thetaVector = gaussianFeature(self.dimension, argv={'l2_limit': 1})
+                            l2_norm = np.linalg.norm(thetaVector, ord=2)
+                            new_theta = thetaVector / l2_norm
+                            dist_to_all_existing_big = all(
+                                [np.linalg.norm(new_theta - existing_theta) >= 0.9 for existing_theta in
+                                global_parameter_set])
+                        # print(self.global_parameter_set.shape)
+                        # print(new_theta.shape)
+                        # print(new_theta.reshape([1,-1]).shape)
+                        self.global_parameter_set = np.concatenate((self.global_parameter_set, new_theta.reshape((1,-1))), axis=0)
+                        self.global_parameter_popularity.append(1)
+                        assert self.global_parameter_set.shape[0] == len(self.global_parameter_popularity)
+                        self.parameter_index_for_users[u.id] = new_parameter_index
+                        u.theta = self.global_parameter_set[new_parameter_index]
+                        # print("number of parameters now: {}".format(self.global_parameter_set.shape[0]))
+                    else:
+                        # print("old parameter index!")
+                        self.global_parameter_popularity[new_parameter_index] += 1
+                        self.parameter_index_for_users[u.id] = new_parameter_index
+                        u.theta = self.global_parameter_set[new_parameter_index]
+                    print(self.global_parameter_popularity)
                 self.regulateArticlePool()  # select random articles
                 noise = self.noise()
                 OptimalReward = self.GetOptimalReward(u, self.articlePool)
@@ -168,7 +209,6 @@ class simulateOnlineData(object):
                         pickedArticle = alg.decide(self.articlePool, u.id)
 
                     if alg_name == "CoDBand" or alg_name == "SCLUB":
-                        estimated_cluster = None
                         if alg_name == "CoDBand":
                             estimated_cluster = [u.userID for u in alg.cluster]
                         if alg_name == "SCLUB":
@@ -315,7 +355,7 @@ if __name__ == '__main__':
     if args.namelabel:
         namelabel = str(args.namelabel)
     else:
-        namelabel = "n" + str(config["n_users"]) + "_" + "m" + str(config["UserGroups"]) + "_" + "SMIN" + str(
+        namelabel = "DP"+"n" + str(config["n_users"]) + "_" + "m" + str(config["UserGroups"]) + "_" + "SMIN" + str(
             config["minimum_change_schedule"]) + "_" + "SMAX" + str(
             config["maximum_change_schedule"]) + "_" + "Sigma" + str(config["NoiseScale"])
 
@@ -323,9 +363,9 @@ if __name__ == '__main__':
     config["context_dimension"] = 25  # feature dimension
     config["n_articles"] = 1000  # Total number of arms/articles
     config["ArticleGroups"] = 0
-    config["gamma"] = 0.85  # gap between unique parameters
+    config["gamma"] = 0.9  # gap between unique parameters
     config["poolSize"] = 10  # number of arms in the armpool in each itereation
-
+    config["alpha_0"] = 4
     # Output
     batchSize = 1  # The batchsize when calculating and plotting the regret
     Write_to_File = True
@@ -334,22 +374,23 @@ if __name__ == '__main__':
     # Algorithm parameters
     config["lambda_"] = 0.1  # regularization in ridge regression
     # CLUB
-    config["CLUB_alpha"] = 0.3
-    config["CLUB_alpha_2"] = 1.0
+    config["CLUB_alpha"] = 0.1
+    config["CLUB_alpha_2"] = 2.0
     config["cluster_init"] = "Complete"  # or "Erdos-Renyi"
     # AdTS
     config["AdTS_Window"] = 200
-    config["v"] = 0.4
+    config["v"] = 1
     # LinUCB
-    config["alpha"] = 0.6
+    config["alpha"] = 0.3
     # dLinUCB
     config["tau"] = 20  # size of sliding window
     config["delta_1"] = 1e-1
     config["delta_2"] = 1e-1
-    config["tilde_delta_1"] = config["delta_1"] #/ 5.0  # tilde_delta_1 should be a number between 0 and self.delta_1
     config["dLinUCB_alpha"] = 0.6
+    config["tilde_delta_1"] = config["delta_1"] #/ 5.0  # tilde_delta_1 should be a number between 0 and self.delta_1
+
     #CoDBand
-    config["memory_size"] = 70
+    config["memory_size"] = 60
 
     # Generate user and item vectors
     userFilename = os.path.join(sim_files_folder, "users_" + str(config["n_users"]) + "context_" + str(
@@ -377,6 +418,7 @@ if __name__ == '__main__':
                                        users=users,
                                        global_parameter_set=global_parameter_set,
                                        parameter_index_for_users=parameter_index_for_users,
+                                       alpha_0 = config["alpha_0"],
                                        noise=lambda: np.random.normal(scale=config["NoiseScale"]),
                                        batchSize=batchSize,
                                        type_="UniformTheta",
@@ -405,6 +447,7 @@ if __name__ == '__main__':
                                        alpha_2=config["CLUB_alpha_2"], cluster_init=config["cluster_init"])
     algorithms['SCLUB'] = SCLUB(nu=config["n_users"], d=config["context_dimension"], NoiseScale=config["NoiseScale"], lambda_=config["lambda_"])
     algorithms['CoDBand'] = CoDBand(v=1, d=config["context_dimension"], lambda_=config["lambda_"], NoiseScale=config["NoiseScale"], alpha_prior={'a': 7.5, 'b': 1.}, tau_cd=config["tau"], alpha=config["alpha"], memory_size=config["memory_size"])
+
     startTime = datetime.datetime.now()
     with open(os.path.join(save_address, 'Config' + startTime.strftime('_%m_%d_%H_%M_%S') + '.json'), 'w') as fp:
         json.dump(config, fp)

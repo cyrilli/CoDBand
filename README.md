@@ -1,14 +1,15 @@
-# Code for "Unifying Non-stationary and Online Clustering of Bandits"
+# Code for "When and Whom to Collaborate with in a Changing Environment: A Collaborative Dynamic Bandit Solution"
 
-This repository contains implementation of the proposed algorithm DyClu, and baseline algorithms for comparison:
+This repository contains implementation of the proposed algorithm CoDBand, and baseline algorithms for comparison:
 - LinUCB
 - dLinUCB and adTS
-- CLUB
+- CLUB and SCLUB
 - oracleLinUCB
 
-For experiments on the synthetic dataset, directly run:
+For experiments on the synthetic dataset, run:
 ```console
-python ClusteredNonStationaryEnvSimulation.py --T 2500 --SMIN 400 --SMAX 2500 --n 30 --m 5 --sigma 0.09
+python Simulation.py --T 3000 --SMIN 500 --SMAX 3000 --n 10 --m 2 --sigma 0.1  # bandit parameters are uniformly sampled from a set of size m
+python SimulationDP.py --T 3000 --SMIN 500 --SMAX 3000 --n 10 --m 2 --sigma 0.1  # bandit parameters are generated according to Chinese restaurant process
 ```
 To experiment with different environment settings, specify parameters:
 - T: number of iterations to run
@@ -18,7 +19,7 @@ To experiment with different environment settings, specify parameters:
 - m: number of unique parameters shared by users
 - sigma: standard deviation of Gaussian noise in observed reward
 
-Detailed description of how the simulation environment works can be found in Section 4.1 of the paper.
+Detailed description of how the simulation environment works can be found in Section 5.1 of the paper.
 
 Experiment results can be found in "./SimulationResults/" folder, which contains:
 - "[namelabel]\_[startTime].png": plot of accumulated regret over iteration for each algorithm
@@ -26,7 +27,7 @@ Experiment results can be found in "./SimulationResults/" folder, which contains
 - "[namelabel]\_ParameterEstimation\_[startTime].csv": l2 norm between estimated and ground-truth parameter at each iteration for each algorithm
 - "Config\_[startTime].json": stores hyper parameters of all algorithms for this experiment
 
-For experiments on LastFM dataset, 
-- First download data from https://grouplens.org/datasets/hetrec-2011/
-- Then process the dataset following instructions in Section 4.1 of the paper, and put resulting feature vector file and event file under ./Dataset folder
-- Run experiments using the provided data loader file "LastFMExperimentRunner.py"
+For experiments on realworld dataset, e.g. LastFM, Delicious, MovieLens, 
+- First download these publicly available data into Dataset folder 
+- Then process the dataset following instructions in Section 5.2 of the paper, which would generate the item feature vector file and the event file. Example scripts for processing data are given in Dataset folder.
+- Run experiments using the provided python script "DeliciousLastFMAndMovieLens.py"

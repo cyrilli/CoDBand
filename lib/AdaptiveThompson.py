@@ -9,13 +9,12 @@ class AdaptiveThompsonUserStruct:
         self.d = featureDimension
         self.mu = np.asarray([0] * self.d)
         self.f = np.asarray([0] * self.d)
-        # self.sigma = 0.44
         # self.epsilon = 0.44
-        self.windowSize = AdTS_Window
+        #self.windowSize = 100
 
         self.sigma = 0.1
         self.epsilon = 0.1
-        self.windowSize = 200
+        self.windowSize = AdTS_Window
         self.history = []
         self.clicks = []
         self.time = 0
@@ -34,7 +33,7 @@ class AdaptiveThompsonUserStruct:
 
         change = False
         if self.time % 50 == 0:
-            # print('trying it out')
+            print('trying it out')
             change = self.detectChange()
 
         if change:
@@ -46,7 +45,7 @@ class AdaptiveThompsonUserStruct:
             self.clicks = []
             self.time = 0
             self.distances = []
-            # print("A change has been detected!")
+            print("A change has been detected!")
 
         #print(self.mu)
 
@@ -90,7 +89,7 @@ class AdaptiveThompsonUserStruct:
                     if sample_diff < s_diff:
                         bootstraps += 1
 
-                # print("Bootstraps: " + str(bootstraps))
+                print("Bootstraps: " + str(bootstraps))
                 if bootstraps > 0.95 * sampleNum:
                     return True
                 else:
@@ -111,13 +110,14 @@ class AdaptiveThompsonUserStruct:
         return cum_sums
 
     def getProb(self, article_FeatureVector, v):
-        # v = math.sqrt((24/self.epsilon)*self.d*math.log(1/self.sigma))
+        #v = math.sqrt((24/self.epsilon)*self.d*math.log(1/self.sigma))
+        # not sure why the calculated v is terrible but this one is much better
         v = v
         sampled_mu = np.random.multivariate_normal(mean=self.mu, cov=v*v*np.linalg.inv(self.B))
         return np.dot(article_FeatureVector.T, sampled_mu)
 
 class AdaptiveThompson:
-    def __init__(self, dimension, AdTS_Window = 500, AdTS_CheckInter = 50, v = 0.4):  # n is number of users
+    def __init__(self, dimension, AdTS_Window = 500, AdTS_CheckInter = 50, sample_num = 1000, v = 0.4):  # n is number of users
         self.users = {}
         self.dimension = dimension
         self.AdTS_Window = AdTS_Window

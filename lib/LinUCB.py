@@ -50,8 +50,9 @@ class LinUCBUserStruct:
 		pta = mean + alpha * var
 		return pta, mean, alpha * var
 
+#---------------LinUCB(fixed user order) algorithm---------------
 class LinUCB:
-	def __init__(self, dimension, alpha, lambda_, NoiseScale, init="zero"):
+	def __init__(self, dimension, alpha, lambda_, NoiseScale, init="zero"):  # n is number of users
 		self.users = {}
 		self.dimension = dimension
 		self.alpha = alpha
@@ -95,5 +96,107 @@ class LinUCB:
 		return self.users[userID].UserTheta
 	def getTheta(self, userID):
 		return self.users[userID].UserTheta
+
+class UniformLinUCB:
+	def __init__(self, dimension, alpha, lambda_, NoiseScale, init="zero"):  # n is number of users
+		self.dimension = dimension
+		self.alpha = alpha
+		self.lambda_ = lambda_
+		self.NoiseScale = NoiseScale
+		self.init = init
+
+		self.CanEstimateUserPreference = True
+		self.CanEstimateCoUserPreference = False
+		self.CanEstimateUserCluster = False
+		self.CanEstimateW = False
+		self.CanEstimateV = False
+		self.CanEstimateBeta = False
+		self.user = LinUCBUserStruct(self.dimension, self.alpha, self.lambda_ , self.NoiseScale, self.init)
+	def decide(self, pool_articles, userID):
+		maxPTA = float('-inf')
+		articlePicked = None
+
+		for x in pool_articles:
+			x_pta = self.user.getProb(self.alpha, x.contextFeatureVector[:self.dimension])
+			# pick article with highest Prob
+			if maxPTA < x_pta:
+				articlePicked = x
+				maxPTA = x_pta
+
+		return articlePicked
+	def getProb(self, pool_articles, userID):
+		means = []
+		vars = []
+		for x in pool_articles:
+			x_pta, mean, var = self.user.getProb_plot(self.alpha, x.contextFeatureVector[:self.dimension])
+			means.append(mean)
+			vars.append(var)
+		return means, vars
+
+	def updateParameters(self, articlePicked, click, userID):
+		self.user.updateParameters(articlePicked.contextFeatureVector[:self.dimension], click)
+		
+	# def getCoTheta(self, userID):
+	# 	return self.user.UserTheta
+	def getTheta(self, userID):
+		return self.user.UserTheta
+
+class LinUCB_Restart:
+	def __init__(self, dimension, alpha, lambda_, NoiseScale, init="zero"):  # n is number of users
+		self.users = []
+		#algorithm have n users, each user has a user structure
+		for i in range(n):
+			self.users.append(LinUCBUserStruct(dimension, lambda_ , NoiseScale, init)) 
+
+		self.dimension = dimension
+		self.alpha = alpha
+		self.n = n
+		self.lambda_ = lambda_
+		self.NoiseScale = NoiseScale
+		self.init = init
+
+		self.CanEstimateUserPreference = True
+		self.CanEstimateCoUserPreference = False
+		self.CanEstimateW = False
+		self.CanEstimateV = False
+		self.CanEstimateBeta = False
+
+		self.changed = False
+		self.precision = []
+		self.recall = []
+	def decide(self, pool_articles, userID, changed):
+		if userID not in self.users:
+			self.users[userID] = LinUCBUserStruct(self.dimension, self.alpha, self.lambda_ , self.NoiseScale, self.init)
+
+		if changed:
+			self.changed = True
+			#Restart the user
+			self.users[userID] = LinUCBUserStruct(self.dimension, self.alpha, self.lambda_ , self.NoiseScale, self.init)
+		maxPTA = float('-inf')
+		articlePicked = None
+		for x in pool_articles:
+			x_pta = self.users[userID].getProb(self.alpha, x.contextFeatureVector[:self.dimension])
+			if maxPTA < x_pta:
+				articlePicked = x
+				maxPTA = x_pta
+
+		return articlePicked
+	def getProb(self, pool_articles, userID):
+		means = []
+		vars = []
+		for x in pool_articles:
+			x_pta, mean, var = self.users[userID].getProb_plot(self.alpha, x.contextFeatureVector[:self.dimension])
+			means.append(mean)
+			vars.append(var)
+		return means, vars
+
+	def updateParameters(self, articlePicked, click, userID):
+		self.users[userID].updateParameters(articlePicked.contextFeatureVector[:self.dimension], click)
+		
+	def getCoTheta(self, userID):
+		return self.users[userID].UserTheta
+	def getTheta(self, userID):
+		return self.users[userID].UserTheta
+
 
 

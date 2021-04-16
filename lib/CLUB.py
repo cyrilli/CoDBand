@@ -80,7 +80,6 @@ class CLUBUserStruct(LinUCBUserStruct):
         pta = mean + alpha * var * np.sqrt(math.log10(time + 1))
         return pta
 
-
 class LinUCBAlgorithm:
     def __init__(self, dimension, alpha, lambda_, n, RankoneInverse=False):  # n is number of users
         self.users = []
@@ -127,12 +126,14 @@ class CLUBAlgorithm(LinUCBAlgorithm):
         self.alpha = alpha
         self.alpha_2 = alpha_2
         if (cluster_init == "Erdos-Renyi"):
+            print("================================Erdos-Renyi")
             p = 3 * math.log(n) / n
             self.Graph = np.random.choice([0, 1], size=(n, n), p=[1 - p, p])
             self.clusters = []
             g = csr_matrix(self.Graph)
             N_components, components = connected_components(g)
         else:
+            print("================================Complete")
             self.Graph = np.ones([n, n])
             self.clusters = []
             g = csr_matrix(self.Graph)
